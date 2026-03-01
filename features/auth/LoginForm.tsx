@@ -3,6 +3,7 @@ import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import Checkbox from '../../components/ui/Checkbox';
 import { UserIcon, LockIcon, AlertCircleIcon, ChurchIcon } from '../../components/Icons';
+import { API_URL } from '../../config';
 
 interface LoginFormProps {
   onLoginSuccess: (email: string, role: 'super_admin' | 'admin') => void;
@@ -52,34 +53,34 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
     setError(null);
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500)); // Increased slightly to show loading state
+      const response = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: formData.email, password: formData.password }),
+      });
 
-      const email = formData.email.toLowerCase();
-      
-      if (email === 'super@admin.com') {
-         onLoginSuccess(formData.email, 'super_admin');
-      } else if (email === 'admin@church.com') {
-         onLoginSuccess(formData.email, 'admin');
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Unable to sign in. Please check your credentials.');
+      }
+
+      if (data.user && data.token) {
+        localStorage.setItem('token', data.token);
+        const role = data.user.role === 'super-admin' ? 'super_admin' : 'admin';
+        onLoginSuccess(data.user.email, role);
       } else {
-        throw new Error('Invalid credentials. Please use the Quick Login profiles below.');
+        throw new Error('Invalid response from server.');
       }
     } catch (err: any) {
-      setError(err.message || 'Unable to sign in.');
+      setError(err.message || 'Unable to connect to the login server.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const fillCredentials = (role: 'super' | 'admin') => {
-    if (role === 'super') {
-      setFormData({ email: 'super@admin.com', password: 'password123' });
-    } else {
-      setFormData({ email: 'admin@church.com', password: 'password123' });
-    }
-    setError(null);
-    setFieldErrors({});
-  };
 
   return (
     <div className="w-full">
@@ -111,7 +112,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
               name="password"
               label="Password"
               placeholder="Enter your password"
-              isPassword
+              isPassword={true}
               value={formData.password}
               onChange={handleInputChange}
               icon={<LockIcon size={20} />}
@@ -127,53 +128,17 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
             Sign In
           </Button>
         </div>
-        
+
         <div className="flex items-center justify-center">
-          <Checkbox 
-            id="remember" 
-            label="Remember me for 30 days" 
+          <Checkbox
+            id="remember"
+            label="Remember me for 30 days"
             checked={rememberMe}
             onChange={(e) => setRememberMe(e.target.checked)}
           />
         </div>
       </form>
 
-      {/* Divider */}
-      <div className="relative my-8">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-slate-200"></div>
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-white px-3 text-slate-400 font-medium tracking-wider">Quick Access</span>
-        </div>
-      </div>
-
-      {/* Quick Login Cards */}
-      <div className="grid grid-cols-2 gap-4">
-        <button 
-          type="button"
-          onClick={() => fillCredentials('super')}
-          className="flex flex-col items-center justify-center p-4 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white hover:border-brand-200 hover:shadow-md transition-all duration-200 group text-center"
-        >
-          <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 mb-2 group-hover:scale-110 transition-transform">
-            <UserIcon size={20} />
-          </div>
-          <span className="text-xs font-bold text-slate-700 group-hover:text-brand-700">Super Admin</span>
-          <span className="text-[10px] text-slate-400 mt-0.5">Full Control</span>
-        </button>
-
-        <button 
-          type="button"
-          onClick={() => fillCredentials('admin')}
-          className="flex flex-col items-center justify-center p-4 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white hover:border-brand-200 hover:shadow-md transition-all duration-200 group text-center"
-        >
-          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mb-2 group-hover:scale-110 transition-transform">
-            <ChurchIcon size={20} />
-          </div>
-          <span className="text-xs font-bold text-slate-700 group-hover:text-brand-700">Administrator</span>
-          <span className="text-[10px] text-slate-400 mt-0.5">Operations</span>
-        </button>
-      </div>
     </div>
   );
 };

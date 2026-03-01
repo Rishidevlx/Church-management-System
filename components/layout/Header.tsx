@@ -1,14 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { MenuIcon, SearchIcon, BellIcon, UserIcon, ChurchIcon, ChevronDownIcon, PrinterIcon } from '../Icons';
 
 interface HeaderProps {
   role: 'super_admin' | 'admin';
   userEmail: string;
+  reminderCount?: number;
   onMenuClick: () => void;
+  onNavigate?: () => void;
+  onSearch?: (query: string) => void; // New: global search handler
 }
 
-const Header: React.FC<HeaderProps> = ({ role, userEmail, onMenuClick }) => {
-  
+const Header: React.FC<HeaderProps> = ({ role, userEmail, reminderCount, onMenuClick, onNavigate, onSearch }) => {
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const handleSearchSubmit = () => {
+    const q = searchQuery.trim();
+    if (q && onSearch) {
+      onSearch(q);
+    }
+  };
+
   // --- Native Print Logic ---
   const handlePrintEmptyForm = () => {
     // 1. Get the container
@@ -23,6 +34,8 @@ const Header: React.FC<HeaderProps> = ({ role, userEmail, onMenuClick }) => {
         <style>
           @import url('https://fonts.googleapis.com/css2?family=Times+New+Roman&display=swap');
           
+          @page { margin: 0; }
+
           .print-content-wrapper { 
             font-family: "Times New Roman", Times, serif; 
             font-size: 11pt; /* Optimal for A4 readability */
@@ -30,6 +43,8 @@ const Header: React.FC<HeaderProps> = ({ role, userEmail, onMenuClick }) => {
             color: #000;
             background: white;
             width: 100%;
+            padding: 10mm;
+            box-sizing: border-box;
           }
 
           /* Utility Classes */
@@ -320,31 +335,33 @@ const Header: React.FC<HeaderProps> = ({ role, userEmail, onMenuClick }) => {
 
     // 3. Inject HTML and Trigger Print
     printSection.innerHTML = formHTML;
-    
+
     // We wait 100ms just to ensure DOM is fully parsed (React safety) then trigger print
     setTimeout(() => {
-        window.print();
+      window.print();
+      // Clear print-section to prevent global style leak
+      setTimeout(() => { printSection.innerHTML = ''; }, 100);
     }, 100);
   };
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 sticky top-0 z-30 px-4 sm:px-6 flex items-center justify-between shadow-sm/50">
-      
+
       {/* Left: Mobile Menu & Breadcrumb/Title */}
       <div className="flex items-center gap-4">
-        <button 
+        <button
           onClick={onMenuClick}
           className="lg:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
         >
           <MenuIcon size={24} />
         </button>
-        
+
         {role === 'admin' && (
-           <div className="hidden sm:flex items-center gap-2 text-slate-400 text-sm font-medium">
-             <ChurchIcon size={18} />
-             <span>/</span>
-             <span className="text-slate-800">Grace Community Church</span>
-           </div>
+          <div className="hidden sm:flex items-center gap-2 text-slate-400 text-sm font-medium">
+            <ChurchIcon size={18} />
+            <span>/</span>
+            <span className="text-slate-800">Grace Community Church</span>
+          </div>
         )}
       </div>
 
@@ -352,12 +369,23 @@ const Header: React.FC<HeaderProps> = ({ role, userEmail, onMenuClick }) => {
       {role === 'admin' ? (
         <div className="hidden md:flex flex-1 max-w-md mx-6">
           <div className="relative w-full">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input 
-              type="text" 
-              placeholder="Search members, families, or IDs..." 
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all placeholder:text-slate-400"
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 cursor-pointer" size={18}
+              onClick={handleSearchSubmit}
             />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSearchSubmit()}
+              placeholder="Search members, families, or IDs..."
+              className="w-full pl-10 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all placeholder:text-slate-400"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm font-bold leading-none"
+              >✕</button>
+            )}
           </div>
         </div>
       ) : (
@@ -366,10 +394,10 @@ const Header: React.FC<HeaderProps> = ({ role, userEmail, onMenuClick }) => {
 
       {/* Right: Actions & Profile */}
       <div className="flex items-center gap-3 sm:gap-4">
-        
+
         {/* Print Form Button */}
         {role === 'admin' && (
-          <button 
+          <button
             type="button"
             onClick={handlePrintEmptyForm}
             className="flex items-center gap-2 px-3 py-1.5 bg-brand-50 text-brand-700 hover:bg-brand-100 border border-brand-200 rounded-lg transition-colors shadow-sm cursor-pointer"
@@ -381,9 +409,17 @@ const Header: React.FC<HeaderProps> = ({ role, userEmail, onMenuClick }) => {
         )}
 
         {role === 'admin' && (
-          <button className="relative p-2 text-slate-500 hover:bg-slate-100 hover:text-brand-600 rounded-full transition-all">
+          <button
+            onClick={onNavigate}
+            className="relative p-2 text-slate-500 hover:bg-slate-100 hover:text-brand-600 rounded-full transition-all"
+            title="View Today's Reminders"
+          >
             <BellIcon size={20} />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+            {reminderCount !== undefined && reminderCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-black rounded-full border-2 border-white flex items-center justify-center px-0.5 leading-none">
+                {reminderCount > 99 ? '99+' : reminderCount}
+              </span>
+            )}
           </button>
         )}
 
